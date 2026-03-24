@@ -1,0 +1,224 @@
+---
+title: "HW7"
+author: "Joey Coladipietro"
+editor: visual
+format:
+  html:
+    embed-resources: true
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+```{r setup}
+library(tidyverse)
+library(tidytext)
+library(schrute)
+library(topicmodels)
+library(ggplot2)
+```
+
+# The Office
+
+Let's continue to work with *The Office* text from the [schrute](https://cran.r-project.org/web/packages/schrute/index.html) package.
+
+# Primary Topics
+
+For each season (not each episode anymore), determine the primary topics for the show using 1) a TF-IDF approach and 2) an LDA approach. You should do at least some cleaning of the data to exclude words that don't make sense.
+
+# 1. TF-IDF approach
+
+```{r}
+office_stopwords <- c(
+    "michael", "jim", "pam", "dwight", "andy", "gould", "erin",
+    "yeah", "hey", "uh", "na", "um", "gonna", "hmm", "guy", "guys"
+)
+
+# Remove them from your tidy text
+office_words <- theoffice |> 
+    group_by(season) |> 
+    summarise(text = paste(text, collapse = " ")) |> 
+    unnest_tokens(word, text) |>
+    anti_join(stop_words, by = "word") |> 
+    filter(!word %in% office_stopwords)
+
+office_tf <- office_words |> 
+    count(season, word) |> 
+    group_by(season) |> 
+    mutate(TF = n / sum(n)) |> 
+    ungroup()
+
+office_idf <- office_words |>
+    distinct(season, word) |> 
+    count(word) |> 
+    rename(Dt = n) |> 
+    mutate(
+        DF = Dt / {office_words |> distinct(season) |> nrow()},
+        DF_adj = Dt / (1 + {office_words |> distinct(season) |> nrow()}),
+        IDF = log(1 / DF),
+        IDF_adj = log(1 / DF_adj)
+    )
+
+office_tfidf <- office_tf |>
+    left_join(office_idf) |>
+    mutate(TFIDF = TF * IDF_adj)
+
+top_words <- office_tfidf |>
+    arrange(desc(TFIDF)) |>
+    group_by(season) |>
+    slice_max(TFIDF, n = 10) |> 
+    ungroup()
+
+
+top_words |> 
+  filter(season %in% c(1,2,3)) |> 
+  ggplot(aes(x = reorder_within(word, TFIDF, season), y = TFIDF, fill = factor(season))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~season, scales = "free") +
+  scale_x_reordered() +
+  coord_flip() +
+  labs(
+    x = "Word",
+    y = "TF-IDF",
+    title = "Top 10 Words TF-IDF: Seasons 1-3"
+  )
+
+
+top_words |> 
+  filter(season %in% c(4,5,6)) |> 
+  ggplot(aes(x = reorder_within(word, TFIDF, season), y = TFIDF, fill = factor(season))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~season, scales = "free") +
+  scale_x_reordered() +
+  coord_flip() +
+  labs(
+    x = "Word",
+    y = "TF-IDF",
+    title = "Top 10 Words TF-IDF: Seasons 4-6"
+  )
+
+
+top_words |> 
+  filter(season %in% c(7,8,9)) |> 
+  ggplot(aes(x = reorder_within(word, TFIDF, season), y = TFIDF, fill = factor(season))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~season, scales = "free") +
+  scale_x_reordered() +
+  coord_flip() +
+  labs(
+    x = "Word",
+    y = "TF-IDF",
+    title = "Top 10 Words TF-IDF: Seasons 7-9"
+  )
+```
+
+S1: Downsizing is the main idea, diversity day, Jim dates Katy (who sells purses), Jim and Dwight's\
+S2: The dundies at chili's, urine testing at the office because Dwight found a joint in the parking lot, Dwight takes the office to meet sensei\
+S3: Andy sings wimowheh, Karen enters, Diwali occurs, Dwight shuns Andy, Ben Franklin the stripper\
+S4: Meredith gets rabies, Karen goes to Utica, Sprinkles the cat dies, Michael learns powerpoint, finer things club, michael wants an antigravity machine for toby's going away\
+S5: Michael's golden ticket idea (wonka), Charles Miner is hired, Michael's disco cafe, Charles asks Jim for a rundown, BOOM ROASTED episode\
+S6: Sabre's acquisition of Dunder Mifflin, Michael's relationship with Donna, hardcore parkour!, printers catching on fire, Dwight cold open as Recyclops, Michael's relationship with Pam's mom (Helene), Dwight hooks up with Isabel at Pam's wedding\
+S7: Deangelo takes over for Michael, Michael proposes to Holly, Michael thinks he has herpes, Ryan's invention of wuphf\
+S8: Focus on Sabre in Florida, Andy's relationship with Jessica, Office trip to Gettysburg (led by Gabe)\
+S9: Pam getting ice, Pete/Clark, Oscar's relationship with Senator, Dwight's relationship with Esther, Belsnickel on christmas, wrapping up the documentary, Pam's mural
+
+# 2. LDA approach
+
+```{r}
+office_stopwords_lda <- c(
+    "michael", "jim", "pam", "dwight", "andy", 
+    "gould", "erin", "ryan", "jan", "toby", 
+    "stanley", "karen", "phyllis", "scott", 
+    "dunder", "mifflin", "feel", "told", "party", 
+    "darryl", "oscar", "angela", "meredith", 
+    "kevin", "huh", "whoa", "david", "mm", "bad", 
+    "robert", "gabe", "holly", "deangelo", "kelly", 
+    "nellie", "wanna", "ha", "gotta", "stuff", 
+    "charles", "la", "pete","yeah", "hey", "uh", 
+    "na", "um", "gonna", "hmm", "guy", "guys", "god", 
+    "time", "wait", "wow", "ah", "stop", "people", 
+    "office", "day", "alright", "nice", "talk", 
+    "cool", "fine", "nice", "job", "lot", "love", 
+    "call", "talking", "listening", "paper", "company", 
+    "fun", "listen", "thinking", "idea", "real", 
+    "pretty", "em", "business", "home", "manager", 
+    "baby", "night", "totally", "life", "bye", "car", 
+    "roy", "happy", "hear", "wrong", "hard", "hear", 
+    "called", "guess", "pum", "mike", "coming", "left", 
+    "leave", "head", "schrute", "lunch", "sounds", "da", 
+    "nope", "money", "bit", "meet", "hold", "tonight", 
+    "plan", "nope", "question", "friends", "weird", 
+    "hot", "morning", "boss"
+)
+
+office_words_lda <- theoffice |> 
+    group_by(season) |> 
+    summarise(text = paste(text, collapse = " ")) |> 
+    unnest_tokens(word, text) |>
+    anti_join(stop_words, by = "word") |> 
+    filter(!word %in% office_stopwords_lda)
+
+office_counts <- office_words_lda |> 
+    count(season, word)
+
+office_dtm <- office_counts |> 
+    cast_dtm(document = season, term = word, value = n)
+
+k <- 9
+office_lda <- LDA(office_dtm, k = k, control = list(seed = 20250309))
+
+office_topics <- tidy(office_lda, matrix = "beta") |> 
+    mutate(topic = paste0("topic", topic))
+
+office_topics |>
+    filter(topic %in% c("topic1","topic2","topic3")) |> 
+    group_by(topic) |> 
+    slice_max(beta, n = 10) |> 
+    ungroup() |> 
+    ggplot() +
+    aes(beta, reorder(term, beta), fill = topic) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~topic, scales = "free") +
+    scale_y_reordered() +
+    labs(x = "Probability (beta)",
+         y = NULL)
+
+office_topics |>
+    filter(topic %in% c("topic4","topic5","topic6")) |> 
+    group_by(topic) |> 
+    slice_max(beta, n = 10) |> 
+    ungroup() |> 
+    ggplot() +
+    aes(beta, reorder(term, beta), fill = topic) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~topic, scales = "free") +
+    scale_y_reordered() +
+    labs(x = "Probability (beta)",
+         y = NULL)
+
+office_topics |>
+    filter(topic %in% c("topic7","topic8","topic9")) |> 
+    group_by(topic) |> 
+    slice_max(beta, n = 10) |> 
+    ungroup() |> 
+    ggplot() +
+    aes(beta, reorder(term, beta), fill = topic) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~topic, scales = "free") +
+    scale_y_reordered() +
+    labs(x = "Probability (beta)",
+         y = NULL)
+```
+
+1: Florida, sabre, seasons 8/9\
+2: Meetings, professional activities\
+3: Pretty random assortment\
+4: Pranking/joking around\
+5: Business related activities\
+6: Christmas parties, gay witch hunt, weddings\
+7: Philly, lice, Wallace buying DM (possible S9)\
+8: Eating, birthday parties, going on dates\
+9: Downsizing, diversity, alliance (possible S1)
+
+My strategy differed between TF-IDF and LDA. Since TF-IDF already recognized the season, I removed less words because character's entries were relevant in certain seasons. However, when using the LDA approach, the program can't recognize the season, so characters flood the topics. When using the LDA, I removed significantly more words to make the topics more clear. Still, I had trouble identifying the topics for LDA. I have more trouble understanding LDA.
