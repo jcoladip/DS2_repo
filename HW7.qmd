@@ -19,6 +19,16 @@ library(topicmodels)
 library(ggplot2)
 ```
 
+Comments:
+
+-   I think it was a really good idea for this assignment to remove just the main characters from the show, it made your TF-IDF a lot more interesting to show not only the topics discussed during the season but which side characters played the biggest role.
+
+-   I found all of your tidyverse work in data cleaning to be very straightforward and easy to follow. It was a very logical flow and even without comments I had no problem following what was being done at each step.
+
+-   One super small change you could make is that when using the count function (ex: line 64), there is a name argument that you can use instead of having to rename the variable in the next line
+
+-   My personal preference when coding is to create create separate chunks for my data cleaning/processing and my plotting. I think it can help make it clear in some more complicated projects of where each stage of work starts/ends, but it is all up to your preference.
+
 # The Office
 
 Let's continue to work with *The Office* text from the [schrute](https://cran.r-project.org/web/packages/schrute/index.html) package.
