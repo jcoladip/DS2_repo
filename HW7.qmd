@@ -39,7 +39,7 @@ For each season (not each episode anymore), determine the primary topics for the
 
 # 1. TF-IDF approach
 
-```{r}
+```{r tf-idf processing}
 office_stopwords <- c(
     "michael", "jim", "pam", "dwight", "andy", "gould", "erin",
     "yeah", "hey", "uh", "na", "um", "gonna", "hmm", "guy", "guys"
@@ -60,9 +60,10 @@ office_tf <- office_words |>
     ungroup()
 
 office_idf <- office_words |>
-    distinct(season, word) |> 
-    count(word) |> 
-    rename(Dt = n) |> 
+    distinct(season, word) |>
+    count(word, name = "Dt") |> 
+    # count(word) |> 
+    # rename(Dt = n) |> 
     mutate(
         DF = Dt / {office_words |> distinct(season) |> nrow()},
         DF_adj = Dt / (1 + {office_words |> distinct(season) |> nrow()}),
@@ -93,8 +94,9 @@ top_words |>
     y = "TF-IDF",
     title = "Top 10 Words TF-IDF: Seasons 1-3"
   )
+```
 
-
+```{r tfidf-plotting}
 top_words |> 
   filter(season %in% c(4,5,6)) |> 
   ggplot(aes(x = reorder_within(word, TFIDF, season), y = TFIDF, fill = factor(season))) +
@@ -135,7 +137,7 @@ S9: Pam getting ice, Pete/Clark, Oscar's relationship with Senator, Dwight's rel
 
 # 2. LDA approach
 
-```{r}
+```{r lda-processing}
 office_stopwords_lda <- c(
     "michael", "jim", "pam", "dwight", "andy", 
     "gould", "erin", "ryan", "jan", "toby", 
@@ -180,7 +182,9 @@ office_lda <- LDA(office_dtm, k = k, control = list(seed = 20250309))
 
 office_topics <- tidy(office_lda, matrix = "beta") |> 
     mutate(topic = paste0("topic", topic))
+```
 
+```{r lda-plotting}
 office_topics |>
     filter(topic %in% c("topic1","topic2","topic3")) |> 
     group_by(topic) |> 
